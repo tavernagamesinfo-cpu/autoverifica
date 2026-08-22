@@ -21,7 +21,7 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   const staticLine = "app.use(express.static(path.join(__dirname, 'public-v4'), { extensions: ['html'] }));";
   const cleanRoot = `app.get(['/', '/index.html'], (req, res) => {
   const htmlPath = path.join(__dirname, 'public-v4', 'index.html');
-  const html = fs.readFileSync(htmlPath, 'utf8')
+  const html = require('fs').readFileSync(htmlPath, 'utf8')
     .replace('<p class="micro">Nessun chilometraggio da inserire manualmente.</p>', '');
   res.type('html').send(html);
 });
