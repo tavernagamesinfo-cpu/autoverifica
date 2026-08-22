@@ -33,49 +33,83 @@ if (!captchaRe.test(code)) throw new Error('Impossibile applicare il fix CAPTCHA
 code = code.replace(captchaRe, captchaReplacement + '\n\nfunction dataUrl(buf)');
 
 const vehicleReplacement = `async function setVehicleType(page) {
-  await sleep(250);
-  const inputs = await page.$$('input');
-  let target = null;
-  let before = null;
-  for (const h of inputs) {
-    const meta = await h.evaluate(el => {
+  await sleep(300);
+
+  const prep = await page.evaluate(() => {
+    const visible = el => {
       const s = getComputedStyle(el), r = el.getBoundingClientRect();
-      const blob = [el.id, el.name, el.placeholder, el.getAttribute('aria-label'), el.getAttribute('role')].join(' ').toLowerCase();
-      return { visible: s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0,
-        blob, value: el.value || '', role: el.getAttribute('role') || '', placeholder: el.placeholder || '' };
-    }).catch(() => null);
-    if (!meta || !meta.visible) continue;
-    if (meta.blob.includes('targa') || meta.blob.includes('captcha')) continue;
-    target = h; before = meta; break;
-  }
-  if (!target) throw new Error('Campo Tipologia veicolo non trovato sul Portale.');
+      return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+    };
+    const inputs = Array.from(document.querySelectorAll('input')).filter(visible);
+    const describe = el => ({
+      value: el.value || '',
+      placeholder: el.placeholder || '',
+      role: el.getAttribute('role') || '',
+      ariaLabel: el.getAttribute('aria-label') || '',
+      type: el.type || '',
+      outer: el.outerHTML.slice(0,500)
+    });
+    const candidates = inputs.filter(el => {
+      const blob = [el.id, el.name, el.placeholder, el.getAttribute('aria-label'), el.getAttribute('role')]
+        .join(' ').toLowerCase();
+      return !blob.includes('targa') && !blob.includes('captcha');
+    });
+    const target = candidates.find(el => (el.getAttribute('role') || '').toLowerCase() === 'combobox') || candidates[0] || null;
+    if (!target) return { ok:false, inputs:inputs.map(describe) };
+    target.focus();
+    target.click();
+    return { ok:true, already:/autoveicolo/i.test(target.value || ''), target:describe(target), inputs:inputs.map(describe) };
+  });
 
-  if (!/autoveicolo/i.test(before.value)) {
-    await target.click({ clickCount: 3 }).catch(() => target.click());
-    await page.keyboard.press('Control+A').catch(() => {});
-    await page.keyboard.press('Backspace').catch(() => {});
-    await target.type('AUTOVEICOLO', { delay: 35 }).catch(() => {});
-    await sleep(350);
+  console.log('VEHICLE_TYPE_PREP', JSON.stringify(prep));
+  if (!prep.ok) throw new Error('Campo Tipologia veicolo non trovato sul Portale.');
 
-    const clicked = await page.evaluate(() => {
-      const visible = el => { const s=getComputedStyle(el),r=el.getBoundingClientRect(); return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0; };
-      const els = [...document.querySelectorAll('[role="option"], li, div, span')]
-        .filter(el => visible(el) && (el.textContent || '').trim().toUpperCase() === 'AUTOVEICOLO');
-      if (!els.length) return false;
-      const el = els.sort((a,b) => (a.getBoundingClientRect().width*a.getBoundingClientRect().height) - (b.getBoundingClientRect().width*b.getBoundingClientRect().height))[0];
-      el.dispatchEvent(new MouseEvent('mousedown', { bubbles:true }));
-      el.dispatchEvent(new MouseEvent('mouseup', { bubbles:true }));
-      el.click();
-      return true;
-    }).catch(() => false);
-    if (!clicked) {
-      await page.keyboard.press('ArrowDown').catch(() => {});
-      await page.keyboard.press('Enter').catch(() => {});
-    }
+  if (!prep.already) {
+    await page.keyboard.down('Control').catch(()=>{});
+    await page.keyboard.press('A').catch(()=>{});
+    await page.keyboard.up('Control').catch(()=>{});
+    await page.keyboard.press('Backspace').catch(()=>{});
+    await page.keyboard.type('AUTOVEICOLO', { delay:35 }).catch(()=>{});
     await sleep(500);
+
+    const optionState = await page.evaluate(() => {
+      const visible = el => {
+        const s=getComputedStyle(el), r=el.getBoundingClientRect();
+        return s.display!=='none' && s.visibility!=='hidden' && r.width>0 && r.height>0;
+      };
+      const els = Array.from(document.querySelectorAll('[role="option"],li,div,span,p'))
+        .filter(el => visible(el) && (el.textContent || '').trim().toUpperCase() === 'AUTOVEICOLO');
+      if (!els.length) return { found:false };
+      const el = els.sort((a,b) => {
+        const ar=a.getBoundingClientRect(), br=b.getBoundingClientRect();
+        return (ar.width*ar.height) - (br.width*br.height);
+      })[0];
+      const r=el.getBoundingClientRect();
+      el.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,clientX:r.left+5,clientY:r.top+5}));
+      el.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,clientX:r.left+5,clientY:r.top+5}));
+      el.click();
+      return { found:true, text:(el.textContent||'').trim(), role:el.getAttribute('role')||'', outer:el.outerHTML.slice(0,500) };
+    });
+    console.log('VEHICLE_TYPE_OPTION', JSON.stringify(optionState));
+
+    if (!optionState.found) {
+      await page.keyboard.press('ArrowDown').catch(()=>{});
+      await page.keyboard.press('Enter').catch(()=>{});
+    }
+    await sleep(600);
   }
 
-  const state = await target.evaluate(el => ({ value: el.value || '', role: el.getAttribute('role') || '', ariaExpanded: el.getAttribute('aria-expanded') || '' })).catch(() => ({}));
+  const state = await page.evaluate(() => {
+    const visible = el => {
+      const s=getComputedStyle(el), r=el.getBoundingClientRect();
+      return s.display!=='none' && s.visibility!=='hidden' && r.width>0 && r.height>0;
+    };
+    const inputs=Array.from(document.querySelectorAll('input')).filter(visible);
+    return inputs.map(el=>({
+      value:el.value||'', placeholder:el.placeholder||'', role:el.getAttribute('role')||'',
+      ariaLabel:el.getAttribute('aria-label')||''
+    }));
+  });
   console.log('VEHICLE_TYPE_STATE', JSON.stringify(state));
 }`;
 
