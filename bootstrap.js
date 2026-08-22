@@ -6,69 +6,39 @@ const filename = path.join(__dirname, 'server.js');
 let code = fs.readFileSync(filename, 'utf8');
 
 const replacement = `async function captchaScreenshot(page) {
-  await sleep(900);
+  await sleep(500);
 
-  const input = await findCaptchaInput(page);
-  if (!input) throw new Error('Campo CAPTCHA non trovato sul Portale.');
-  const inputBox = await input.boundingBox();
-  if (!inputBox) throw new Error('Il campo CAPTCHA non è visibile sul Portale.');
-
-  const candidates = await page.$$('img,canvas,svg');
-  const ranked = [];
-
-  for (const h of candidates) {
-    const m = await h.evaluate(el => {
-      const r = el.getBoundingClientRect();
-      const s = getComputedStyle(el);
+  const src = await page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('img')];
+    const img = imgs.find(el => {
       const blob = [
-        el.id,
-        typeof el.className === 'string' ? el.className : '',
         el.getAttribute('alt'),
         el.getAttribute('aria-label'),
-        el.getAttribute('src'),
-        el.getAttribute('title')
+        el.getAttribute('title'),
+        el.id,
+        typeof el.className === 'string' ? el.className : ''
       ].join(' ').toLowerCase();
-      return {
-        visible: s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0,
-        x: r.x, y: r.y, w: r.width, h: r.height,
-        bottom: r.bottom,
-        blob
-      };
-    }).catch(() => null);
+      return blob.includes('captcha');
+    });
+    return img ? (img.getAttribute('src') || img.src || null) : null;
+  });
 
-    if (!m || !m.visible) continue;
-    if (m.w < 70 || m.w > 700 || m.h < 20 || m.h > 240) continue;
+  if (!src) throw new Error('Immagine CAPTCHA non trovata sul Portale.');
 
-    const explicitCaptcha = /captcha|codice|security|challenge/.test(m.blob);
-    const obviousBrand = /logo|brand|header|portale|automobilista/.test(m.blob);
-    const aboveInput = m.bottom <= inputBox.y + 35 && m.bottom >= inputBox.y - 500;
-    const horizontalDistance = Math.abs((m.x + m.w / 2) - (inputBox.x + inputBox.width / 2));
-
-    if (obviousBrand && !explicitCaptcha) continue;
-    if (!explicitCaptcha && !aboveInput) continue;
-
-    const verticalDistance = Math.max(0, inputBox.y - m.bottom);
-    const score = (explicitCaptcha ? -10000 : 0) + verticalDistance + horizontalDistance * 0.15;
-    ranked.push({ h, score, m });
+  if (src.startsWith('data:image/')) {
+    const match = src.match(/^data:image\\/[^;]+;base64,(.+)$/);
+    if (!match) throw new Error('Formato CAPTCHA non riconosciuto.');
+    console.log('CAPTCHA_SOURCE data-url');
+    return Buffer.from(match[1], 'base64');
   }
 
-  ranked.sort((a, b) => a.score - b.score);
-  if (ranked.length) {
-    try {
-      console.log('CAPTCHA_ELEMENT', JSON.stringify(ranked[0].m));
-      return await ranked[0].h.screenshot({ type: 'png' });
-    } catch {}
+  const handle = await page.$('img[alt="captcha"]');
+  if (handle) {
+    console.log('CAPTCHA_SOURCE element-screenshot');
+    return await handle.screenshot({ type: 'png' });
   }
 
-  // Fallback: fotografia esclusivamente la zona immediatamente sopra il campo
-  // CAPTCHA. In questo modo non selezioniamo più il logo del sito.
-  const vp = page.viewport() || { width: 900, height: 920 };
-  const x = Math.max(0, Math.min(inputBox.x - 100, vp.width - 420));
-  const width = Math.min(vp.width - x, Math.max(420, inputBox.width + 200));
-  const y = Math.max(0, inputBox.y - 300);
-  const height = Math.max(80, Math.min(280, inputBox.y - y - 8));
-  console.log('CAPTCHA_FALLBACK_CLIP', JSON.stringify({ x, y, width, height, inputBox }));
-  return page.screenshot({ type: 'png', clip: { x, y, width, height } });
+  throw new Error('CAPTCHA presente ma non acquisibile.');
 }`;
 
 const re = /async function captchaScreenshot\(page\) \{[\s\S]*?\n\}\n\nfunction dataUrl\(buf\)/;
@@ -80,6 +50,16 @@ code = code.replace(re, replacement + '\n\nfunction dataUrl(buf)');
 code = code.replace(
   "await sleep(1800); await setVehicleType(page); await fillPlate(page,plate); await sleep(500);",
   "await sleep(1800); await setVehicleType(page); await fillPlate(page,plate); await sleep(500); console.log('FORM_SNAPSHOT', JSON.stringify(await visibleFormSnapshot(page)));"
+);
+
+code = code.replace(
+  "}catch(e){if(context)try{await context.close()}catch{};res.status(502).json({error:'Non riesco ad aprire il controllo revisioni del Portale: '+e.message});}",
+  "}catch(e){console.error('START_ERROR', e && (e.stack || e.message || e)); if(context)try{await context.close()}catch{};res.status(502).json({error:'Non riesco ad aprire il controllo revisioni del Portale: '+e.message});}"
+);
+
+code = code.replace(
+  "}catch(e){res.status(502).json({error:'La verifica non è stata completata: '+e.message});}",
+  "}catch(e){console.error('SOLVE_ERROR', e && (e.stack || e.message || e));res.status(502).json({error:'La verifica non è stata completata: '+e.message});}"
 );
 
 const runtime = new Module(filename, module);
