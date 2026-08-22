@@ -24,7 +24,7 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   if (!code.includes(oldVehicleText)) throw new Error('AutoVerifica v4 preload: vehicle metadata patch target not found');
   code = code.replace(oldVehicleText, newVehicleText);
 
-  // RCA calls the car choice "Veicolo", not "Autoveicolo".
+  // RCA calls the first car choice "Veicolo", not "Autoveicolo".
   const oldVehicleFilter = ".filter(x => /^autoveicolo$/i.test(x.text) || /\\bautoveicolo\\b/i.test(x.text));";
   const newVehicleFilter = ".filter(x => /^autoveicolo$/i.test(x.text) || /\\bautoveicolo\\b/i.test(x.text) || (x.el.tagName==='INPUT' && (((x.el.getAttribute('name')||'').toLowerCase()==='veicolo') || /^veicolo$/i.test(x.el.value||''))));";
   if (!code.includes(oldVehicleFilter)) throw new Error('AutoVerifica v4 preload: vehicle filter patch target not found');
@@ -41,6 +41,18 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
     }`;
   if (!code.includes(oldNoVehicle)) throw new Error('AutoVerifica v4 preload: vehicle fallback patch target not found');
   code = code.replace(oldNoVehicle, newNoVehicle);
+
+  // RCA is a two-stage form: first "Veicolo", then select "Autoveicolo".
+  const oldPrepareVehicle = "if(module==='revisions'||module==='environment'||module==='rca')await chooseAutoveicolo(s.page).catch(()=>false);";
+  const newPrepareVehicle = `if(module==='revisions'||module==='environment')await chooseAutoveicolo(s.page).catch(()=>false);
+  if(module==='rca'){
+    await chooseAutoveicolo(s.page).catch(()=>false);
+    await sleep(350);
+    await chooseAutoveicolo(s.page).catch(()=>false);
+    await sleep(250);
+  }`;
+  if (!code.includes(oldPrepareVehicle)) throw new Error('AutoVerifica v4 preload: RCA two-stage prepare target not found');
+  code = code.replace(oldPrepareVehicle, newPrepareVehicle);
 
   const oldCaptchaRejected = "function captchaRejected(text){return /captcha|caratteri/i.test(text||'')&&/errat|non valid|sbagli|riprova|non corret/i.test(text||'');}";
   const newCaptchaRejected = `function captchaRejected(text){
@@ -64,9 +76,9 @@ ${staticLine}`;
   if (!code.includes(staticLine)) throw new Error('AutoVerifica v4 preload: static route patch target not found');
   code = code.replace(staticLine, cleanRoot);
 
-  // Temporary startup diagnostic for RCA. Uses no real user plate and does not submit a CAPTCHA.
+  // Temporary RCA self-test: first choose Veicolo, then Autoveicolo, then inspect the form.
   const listenLine = "app.listen(PORT,'0.0.0.0',()=>console.log(`AutoVerifica v4 listening on ${PORT}`));";
-  const diagnostic = `${listenLine}\nsetTimeout(async()=>{\n  let ctx;\n  try{\n    const b=await getBrowser();ctx=await b.createBrowserContext();const p=await ctx.newPage();\n    await p.setViewport({width:1200,height:1000});await openOfficial(p,URLS.rca);\n    console.log('RCA_DIAG_BEFORE',JSON.stringify(await snapshot(p)));\n    const chosen=await chooseAutoveicolo(p).catch(e=>({error:e.message}));\n    await sleep(1200);\n    console.log('RCA_DIAG_CHOSEN',JSON.stringify(chosen));\n    console.log('RCA_DIAG_AFTER',JSON.stringify(await snapshot(p)));\n  }catch(e){console.error('RCA_DIAG_ERROR',e.stack||e)}finally{if(ctx)try{await ctx.close()}catch{}}\n},2500);`;
+  const diagnostic = `${listenLine}\nsetTimeout(async()=>{\n  let ctx;\n  try{\n    const b=await getBrowser();ctx=await b.createBrowserContext();const p=await ctx.newPage();\n    await p.setViewport({width:1200,height:1000});await openOfficial(p,URLS.rca);\n    const c1=await chooseAutoveicolo(p).catch(e=>({error:e.message}));\n    await sleep(800);\n    const c2=await chooseAutoveicolo(p).catch(e=>({error:e.message}));\n    await sleep(400);\n    const state=await p.evaluate(()=>{\n      const s=document.querySelector('select#tipoVeicolo,select[name=tipoVeicolo]');\n      const plate=document.querySelector('input#targa,input[name=targa]');\n      const cap=document.querySelector('input#captcha,input[name=captcha]');\n      const img=document.querySelector('img.captcha,img[alt*=\\"identificare\\" i]');\n      return {first:c1,second:c2,selectValue:s?.value||'',selectText:s?.selectedOptions?.[0]?.textContent?.trim()||'',plate:!!plate,captcha:!!cap,captchaImage:!!img};\n    }).catch(()=>({first:c1,second:c2}));\n    console.log('RCA_DIAG_FINAL',JSON.stringify(state));\n  }catch(e){console.error('RCA_DIAG_ERROR',e.stack||e)}finally{if(ctx)try{await ctx.close()}catch{}}\n},2500);`;
   if (!code.includes(listenLine)) throw new Error('AutoVerifica v4 preload: listen diagnostic target not found');
   code = code.replace(listenLine, diagnostic);
 
