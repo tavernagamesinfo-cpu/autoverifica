@@ -17,10 +17,18 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   }
   code = code.replace(oldCaptchaPenalty, newCaptchaPenalty);
 
-  // Serve the clearer progressive mobile interface on the root URL.
+  // The neopatentati page can also require a CAPTCHA. Parse its result after submit.
+  const oldSolveTail = "if(s.stage==='environment')s.data.environment=await extractEnvironment(s.page);\n  return {captchaRejected:false};";
+  const newSolveTail = "if(s.stage==='environment')s.data.environment=await extractEnvironment(s.page);\n  if(s.stage==='novice')s.data.novice=await extractNovice(s.page);\n  return {captchaRejected:false};";
+  if (!code.includes(oldSolveTail)) {
+    throw new Error('AutoVerifica v4 preload: novice patch target not found');
+  }
+  code = code.replace(oldSolveTail, newSolveTail);
+
+  // Serve the clearer progressive interface on the root URL.
   const staticLine = "app.use(express.static(path.join(__dirname, 'public-v4'), { extensions: ['html'] }));";
   const cleanRoot = `app.get(['/', '/index.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public-v4', 'progress.html'));
+  res.sendFile(path.join(__dirname, 'public-v4', 'progress-v2.html'));
 });
 ${staticLine}`;
   if (!code.includes(staticLine)) {
