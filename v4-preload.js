@@ -17,13 +17,10 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   }
   code = code.replace(oldCaptchaPenalty, newCaptchaPenalty);
 
-  // Serve a cleaner root page without the misleading manual-km sentence.
+  // Serve the clearer progressive mobile interface on the root URL.
   const staticLine = "app.use(express.static(path.join(__dirname, 'public-v4'), { extensions: ['html'] }));";
   const cleanRoot = `app.get(['/', '/index.html'], (req, res) => {
-  const htmlPath = path.join(__dirname, 'public-v4', 'index.html');
-  const html = require('fs').readFileSync(htmlPath, 'utf8')
-    .replace('<p class="micro">Nessun chilometraggio da inserire manualmente.</p>', '');
-  res.type('html').send(html);
+  res.sendFile(path.join(__dirname, 'public-v4', 'progress.html'));
 });
 ${staticLine}`;
   if (!code.includes(staticLine)) {
