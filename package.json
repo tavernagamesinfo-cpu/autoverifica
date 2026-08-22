@@ -1,11 +1,11 @@
 {
   "name": "autoverifica",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "PWA pre-acquisto che consulta lo storico revisioni del Portale dell'Automobilista con CAPTCHA risolto dall'utente.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node bootstrap.js"
   },
   "engines": {
     "node": ">=22 <25"
