@@ -1,12 +1,12 @@
 {
   "name": "autoverifica",
-  "version": "2.1.3",
+  "version": "3.0.0",
   "private": true,
-  "description": "PWA pre-acquisto che consulta lo storico revisioni del Portale dell'Automobilista con CAPTCHA risolto dall'utente.",
+  "description": "PWA pre-acquisto che consulta lo storico revisioni ufficiale del Portale dell'Automobilista con CAPTCHA risolto dall'utente.",
   "main": "server.js",
   "scripts": {
     "postinstall": "npx puppeteer browsers install chrome",
-    "start": "node verify-browser.js && node bootstrap.js"
+    "start": "node verify-browser.js && node server.js"
   },
   "engines": {
     "node": ">=22 <25"
