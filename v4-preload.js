@@ -9,13 +9,11 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
 
   let code = fs.readFileSync(filename, 'utf8');
 
-  // The CAPTCHA src contains the portal domain/path; do not penalize it for the word "portale".
   const oldCaptchaPenalty = "if(/logo|facebook|minister|portale/.test(blob))n-=500;";
   const newCaptchaPenalty = "if(/logo|facebook|minister/.test([el.alt,el.title,el.id,typeof el.className==='string'?el.className:''].join(' ').toLowerCase()))n-=500;";
   if (!code.includes(oldCaptchaPenalty)) throw new Error('AutoVerifica v4 preload: CAPTCHA patch target not found');
   code = code.replace(oldCaptchaPenalty, newCaptchaPenalty);
 
-  // RCA starts with a graphical vehicle-type choice. Include image controls and their metadata.
   const oldVehicleSelector = "const candidates = [...document.querySelectorAll('button,a,label,li,input[type=button],input[type=submit],input[type=radio]')]";
   const newVehicleSelector = "const candidates = [...document.querySelectorAll('button,a,label,li,input[type=button],input[type=submit],input[type=radio],input[type=image]')]";
   if (!code.includes(oldVehicleSelector)) throw new Error('AutoVerifica v4 preload: vehicle selector patch target not found');
@@ -25,6 +23,12 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   const newVehicleText = ".map(el => ({ el, text:[el.innerText,el.value,el.title,el.getAttribute('aria-label'),el.getAttribute('alt'),el.getAttribute('src'),el.getAttribute('name'),el.id,el.getAttribute('formaction')].filter(Boolean).join(' ').trim() }))";
   if (!code.includes(oldVehicleText)) throw new Error('AutoVerifica v4 preload: vehicle metadata patch target not found');
   code = code.replace(oldVehicleText, newVehicleText);
+
+  // RCA calls the car choice "Veicolo", not "Autoveicolo".
+  const oldVehicleFilter = ".filter(x => /^autoveicolo$/i.test(x.text) || /\\bautoveicolo\\b/i.test(x.text));";
+  const newVehicleFilter = ".filter(x => /^autoveicolo$/i.test(x.text) || /\\bautoveicolo\\b/i.test(x.text) || (x.el.tagName==='INPUT' && (((x.el.getAttribute('name')||'').toLowerCase()==='veicolo') || /^veicolo$/i.test(x.el.value||''))));";
+  if (!code.includes(oldVehicleFilter)) throw new Error('AutoVerifica v4 preload: vehicle filter patch target not found');
+  code = code.replace(oldVehicleFilter, newVehicleFilter);
 
   const oldNoVehicle = "if (!candidates.length) return { ok:false };";
   const newNoVehicle = `if (!candidates.length) {
@@ -38,7 +42,6 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   if (!code.includes(oldNoVehicle)) throw new Error('AutoVerifica v4 preload: vehicle fallback patch target not found');
   code = code.replace(oldNoVehicle, newNoVehicle);
 
-  // Only treat an actual CAPTCHA validation message as a rejected CAPTCHA.
   const oldCaptchaRejected = "function captchaRejected(text){return /captcha|caratteri/i.test(text||'')&&/errat|non valid|sbagli|riprova|non corret/i.test(text||'');}";
   const newCaptchaRejected = `function captchaRejected(text){
   const t=String(text||'').replace(/\\s+/g,' ');
@@ -48,13 +51,11 @@ Module._extensions['.js'] = function patchedLoader(mod, filename) {
   if (!code.includes(oldCaptchaRejected)) throw new Error('AutoVerifica v4 preload: CAPTCHA rejected patch target not found');
   code = code.replace(oldCaptchaRejected, newCaptchaRejected);
 
-  // Parse neopatentati result after a successful CAPTCHA submit.
   const oldSolveTail = "if(s.stage==='environment')s.data.environment=await extractEnvironment(s.page);\n  return {captchaRejected:false};";
   const newSolveTail = "if(s.stage==='environment')s.data.environment=await extractEnvironment(s.page);\n  if(s.stage==='novice')s.data.novice=await extractNovice(s.page);\n  return {captchaRejected:false};";
   if (!code.includes(oldSolveTail)) throw new Error('AutoVerifica v4 preload: novice patch target not found');
   code = code.replace(oldSolveTail, newSolveTail);
 
-  // Serve progressive interface.
   const staticLine = "app.use(express.static(path.join(__dirname, 'public-v4'), { extensions: ['html'] }));";
   const cleanRoot = `app.get(['/', '/index.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public-v4', 'progress-v2.html'));
