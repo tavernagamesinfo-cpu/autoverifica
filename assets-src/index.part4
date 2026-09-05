@@ -1,0 +1,40 @@
+on trimSig(){const d=sigX.getImageData(0,0,sigC.width,sigC.height).data;let minX=sigC.width,minY=sigC.height,maxX=-1,maxY=-1;for(let y=0;y<sigC.height;y++)for(let x=0;x<sigC.width;x++)if(d[(y*sigC.width+x)*4+3]>8){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y)}if(maxX<0)return null;const pad=8,c=document.createElement('canvas');c.width=maxX-minX+1+pad*2;c.height=maxY-minY+1+pad*2;c.getContext('2d').drawImage(sigC,minX,minY,maxX-minX+1,maxY-minY+1,pad,pad,maxX-minX+1,maxY-minY+1);return c}
+function updateSignOverlay(){const ov=$('#signOverlay'),tc=trimSig();if(!signPlace||!tc){ov.style.display='none';return}ov.src=tc.toDataURL('image/png');ov.style.display='block';ov.style.left=(signPlace.x*100)+'%';ov.style.top=(signPlace.y*100)+'%';ov.style.width=(+$('#sigW').value)+'%'}
+function setSignPlace(p){signPlace={x:clamp01(p.x),y:clamp01(p.y)};updateSignOverlay()}
+$('#sigClear').onclick=()=>{sigX.clearRect(0,0,sigC.width,sigC.height);updateSignOverlay()};
+$('#sigW').oninput=e=>{$('#sigWVal').textContent=e.target.value+'%';updateSignOverlay()};
+$('#signInput').onchange=async e=>{signFile=e.target.files[0]||null;if(!signFile)return;try{signPdf=await loadPdfJS(signFile);$('#signPage').max=signPdf.numPages;$('#signPage').value=1;signPlace=null;$('#signOverlay').style.display='none';await renderPage(signPdf,1,$('#signPreview'),1.1);status('#signStatus',`${signFile.name} • ${signPdf.numPages} ${tr('pages')}`,'ok')}catch(err){status('#signStatus',tr('invalid_pdf'),'err')}};
+$('#signPage').onchange=async()=>{if(signPdf){signPlace=null;$('#signOverlay').style.display='none';await renderPage(signPdf,+$('#signPage').value||1,$('#signPreview'),1.1)}};
+$('#signStage').addEventListener('pointerdown',e=>{if(e.target===$('#signOverlay'))return;setSignPlace(pointerNorm($('#signStage'),e))});
+
+async function renderTextPage(){if(!textPdf)return;const r=await renderPage(textPdf,+$('#textPage').value||1,$('#textPreview'),1.1);textPageWidth=r.page.getViewport({scale:1}).width;updateTextOverlay()}
+function updateTextOverlay(){const ov=$('#textOverlay'),txt=$('#stampText').value;if(!textPlace||!txt){ov.style.display='none';return}ov.textContent=txt;ov.style.display='block';ov.style.left=(textPlace.x*100)+'%';ov.style.top=(textPlace.y*100)+'%';const stage=$('#textStage');const px=Math.max(7,(+$('#textSize').value||14)*(stage.clientWidth||1)/(textPageWidth||595));ov.style.fontSize=px+'px'}
+function setTextPlace(p){textPlace={x:clamp01(p.x),y:clamp01(p.y)};updateTextOverlay()}
+$('#textInput').onchange=async e=>{textFile=e.target.files[0]||null;if(!textFile)return;try{textPdf=await loadPdfJS(textFile);$('#textPage').max=textPdf.numPages;$('#textPage').value=1;textPlace=null;$('#textOverlay').style.display='none';await renderTextPage();status('#textStatus',`${textFile.name} • ${textPdf.numPages} ${tr('pages')}`,'ok')}catch(err){status('#textStatus',tr('invalid_pdf'),'err')}};
+$('#textPage').onchange=async()=>{if(textPdf){textPlace=null;$('#textOverlay').style.display='none';await renderTextPage()}};
+$('#textStage').addEventListener('pointerdown',e=>{if(e.target===$('#textOverlay'))return;setTextPlace(pointerNorm($('#textStage'),e))});
+$('#stampText').addEventListener('input',updateTextOverlay);$('#textSize').addEventListener('input',updateTextOverlay);
+$('#todayBtn').onclick=()=>{$('#stampText').value=new Intl.DateTimeFormat(LANG==='it'?'it-IT':'en-GB').format(new Date());updateTextOverlay()};
+
+let dragKind=null,dragPointer=null;
+function beginOverlayDrag(kind,e){e.preventDefault();e.stopPropagation();dragKind=kind;dragPointer=e.pointerId;e.currentTarget.classList.add('dragging');try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}}
+$('#signOverlay').addEventListener('pointerdown',e=>beginOverlayDrag('sign',e));
+$('#textOverlay').addEventListener('pointerdown',e=>beginOverlayDrag('text',e));
+window.addEventListener('pointermove',e=>{if(!dragKind||e.pointerId!==dragPointer)return;e.preventDefault();if(dragKind==='sign')setSignPlace(pointerNorm($('#signStage'),e));else setTextPlace(pointerNorm($('#textStage'),e))},{passive:false});
+window.addEventListener('pointerup',e=>{if(e.pointerId!==dragPointer)return;$('#signOverlay').classList.remove('dragging');$('#textOverlay').classList.remove('dragging');dragKind=null;dragPointer=null});
+window.addEventListener('pointercancel',e=>{if(e.pointerId!==dragPointer)return;$('#signOverlay').classList.remove('dragging');$('#textOverlay').classList.remove('dragging');dragKind=null;dragPointer=null});
+
+function nudge(kind,dir){const step=.01;let p=kind==='sign'?signPlace:textPlace;if(!p)p={x:.5,y:.5};p={x:p.x,y:p.y};if(dir==='left')p.x-=step;if(dir==='right')p.x+=step;if(dir==='up')p.y-=step;if(dir==='down')p.y+=step;if(dir==='center')p={x:.5,y:.5};if(kind==='sign')setSignPlace(p);else setTextPlace(p)}
+$('#signNudges').querySelectorAll('[data-nudge]').forEach(b=>b.onclick=()=>nudge('sign',b.dataset.nudge));
+$('#textNudges').querySelectorAll('[data-nudge]').forEach(b=>b.onclick=()=>nudge('text',b.dataset.nudge));
+window.addEventListener('resize',()=>{updateSignOverlay();updateTextOverlay()});
+
+$('#signSave').onclick=async()=>{if(!signFile)return status('#signStatus',tr('select_pdf'),'err');const tc=trimSig();if(!tc)return status('#signStatus',tr('sig_missing'),'err');if(!signPlace)return status('#signStatus',tr('tap_missing'),'err');try{const doc=await PDFLib.PDFDocument.load(await signFile.arrayBuffer()),p=doc.getPage((+$('#signPage').value||1)-1),{width:pw,height:ph}=p.getSize(),blob=await canvasBlob(tc,'image/png'),img=await doc.embedPng(new Uint8Array(await blob.arrayBuffer())),w=pw*(+$('#sigW').value/100),h=w*tc.height/tc.width,x=signPlace.x*pw-w/2,y=ph-signPlace.y*ph-h/2;p.drawImage(img,{x,y,width:w,height:h});download(await doc.save({useObjectStreams:true}),basename(signFile.name)+(LANG==='it'?'-firmato.pdf':'-signed.pdf'),'application/pdf');status('#signStatus',tr('saved'),'ok')}catch(err){status('#signStatus',tr('error')+': '+err.message,'err')}};
+
+$('#textSave').onclick=async()=>{if(!textFile)return status('#textStatus',tr('select_pdf'),'err');const txt=$('#stampText').value.trim();if(!txt)return status('#textStatus',tr('text_missing'),'err');if(!textPlace)return status('#textStatus',tr('tap_missing'),'err');try{const doc=await PDFLib.PDFDocument.load(await textFile.arrayBuffer()),p=doc.getPage((+$('#textPage').value||1)-1),{width:pw,height:ph}=p.getSize(),size=Math.max(6,Math.min(72,+$('#textSize').value||14)),font=await doc.embedFont(PDFLib.StandardFonts.Helvetica);p.drawText(txt,{x:textPlace.x*pw,y:ph-textPlace.y*ph-size,size,font,color:PDFLib.rgb(.06,.08,.12)});download(await doc.save({useObjectStreams:true}),basename(textFile.name)+(LANG==='it'?'-testo.pdf':'-text.pdf'),'application/pdf');status('#textStatus',tr('saved'),'ok')}catch(err){status('#textStatus',tr('error')+': '+err.message,'err')}};
+
+let compFile=null;$('#compInput').onchange=e=>{compFile=e.target.files[0]||null;if(compFile)status('#compStatus',compFile.name+' • '+fmt(compFile.size),'ok')};$('#compQ').oninput=e=>$('#compQVal').textContent=e.target.value+'%';$('#compBtn').onclick=async()=>{if(!compFile)return status('#compStatus',tr('select_pdf'),'err');try{const pdf=await loadPdfJS(compFile),out=await PDFLib.PDFDocument.create(),scale=+$('#compScale').value,q=+$('#compQ').value/100;for(let i=1;i<=pdf.numPages;i++){status('#compStatus',`${tr('working')} ${i}/${pdf.numPages}`,'info');const c=document.createElement('canvas'),{page}=await renderPage(pdf,i,c,scale),v=page.getViewport({scale:1}),blob=await canvasBlob(c,'image/jpeg',q),img=await out.embedJpg(new Uint8Array(await blob.arrayBuffer())),p=out.addPage([v.width,v.height]);p.drawImage(img,{x:0,y:0,width:v.width,height:v.height})}const bytes=await out.save({useObjectStreams:true});download(bytes,basename(compFile.name)+(LANG==='it'?'-compresso.pdf':'-compressed.pdf'),'application/pdf');status('#compStatus',`${tr('created')} ${fmt(compFile.size)} → ${fmt(bytes.length)}`,'ok')}catch(err){status('#compStatus',tr('error')+': '+err.message,'err')}};
+
+applyLang();
+</script>
+</body></html>
