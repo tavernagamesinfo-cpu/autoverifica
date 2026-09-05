@@ -1,0 +1,1 @@
+using System.Windows; namespace PDFSemplice.Desktop; public partial class App : Application { }
