@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>PDF Semplice / Simple PDF — Browser Test</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#101828;--muted:#667085;--line:#e4e7ec;--dark:#111827;--good:#067647;--bad:#b42318;--warn:#b54708;--blue:#175cd3;--r:18px;--shadow:0 9px 30px rgba(16,24,40,.08)}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)} button,input,select,textarea{font:inherit} button{cursor:pointer}
+.app{max-width:1050px;margin:auto;padding:15px 13px 70px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.brand{display:flex;gap:11px;align-items:center}.logo{width:48px;height:48px;display:grid;place-items:center;background:var(--dark);color:#fff;border-radius:15px;font-weight:900}.brand h1{font-size:1.45rem;margin:0}.sub{font-size:.86rem;color:var(--muted);margin-top:3px}.lang{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.lang button{border:0;background:#fff;padding:8px 10px;font-weight:800}.lang button.on{background:var(--dark);color:#fff}
+.notice{margin-top:12px;border:1px solid #abefc6;background:#ecfdf3;color:#05603a;padding:10px 12px;border-radius:13px;font-size:.84rem}.engine{display:flex;gap:7px;align-items:center;margin-top:8px;font-size:.79rem;color:var(--muted)}.dot{width:9px;height:9px;border-radius:50%;background:#98a2b3}.dot.ok{background:#12b76a}.dot.bad{background:#f04438}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:16px}.tool{border:1px solid var(--line);border-radius:17px;background:#fff;text-align:left;padding:15px;min-height:126px;box-shadow:0 3px 14px rgba(16,24,40,.025)}.tool:active{transform:scale(.99)}.tool .ico{font-size:1.55rem}.tool h2{font-size:1rem;margin:8px 0 5px}.tool p{margin:0;color:var(--muted);font-size:.8rem;line-height:1.4}
+.panel{display:none;margin-top:14px;border:1px solid var(--line);border-radius:20px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}.panel.active{display:block}.head{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:9px;padding:11px 13px;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line)}.back{border:1px solid var(--line);border-radius:10px;background:#fff;padding:7px 10px}.body{padding:15px}.drop{border:1.5px dashed #98a2b3;border-radius:15px;padding:20px;text-align:center;background:#fafafa}.drop input{display:none}.pick{display:inline-block;background:var(--dark);color:#fff;border-radius:11px;padding:10px 14px;font-weight:800}.small{font-size:.78rem;color:var(--muted)}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:11px}.field{flex:1;min-width:140px}label.cap{display:block;font-size:.76rem;font-weight:750;margin-bottom:5px;color:#344054}select,input[type=text],input[type=number],input[type=range]{width:100%;padding:9px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}.primary,.secondary,.danger{border:0;border-radius:11px;padding:10px 13px;font-weight:800}.primary{background:var(--dark);color:#fff}.secondary{background:#f2f4f7;color:#344054}.danger{background:#fef3f2;color:#b42318}.primary:disabled{opacity:.45}.status{display:none;margin-top:11px;padding:10px 11px;border-radius:11px;font-size:.82rem;white-space:pre-wrap}.status.show{display:block}.status.info{background:#eff8ff;color:#175cd3}.status.ok{background:#ecfdf3;color:#067647}.status.err{background:#fef3f2;color:#b42318}.status.warn{background:#fffaeb;color:#b54708}
+.fileList{display:grid;gap:8px;margin-top:11px}.fileRow{display:flex;align-items:center;gap:7px;padding:9px;border:1px solid var(--line);border-radius:11px}.fileRow .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}.fileRow button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 7px}
+.previewGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;margin-top:12px}.pageCard{border:1px solid var(--line);border-radius:13px;padding:8px}.pageCard canvas{width:100%;height:auto;display:block;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.06)}.meta{font-size:.72rem;color:#475467;margin-top:6px}.safe{color:var(--good);font-size:.7rem;font-weight:800;margin-top:5px}.crop{color:var(--warn);font-size:.7rem;font-weight:800;margin-top:5px}.mini{display:flex;gap:4px;margin-top:6px}.mini button{flex:1;border:1px solid var(--line);background:#f9fafb;border-radius:7px;padding:5px;font-size:.72rem}.hint{border:1px solid var(--line);background:#f9fafb;border-radius:11px;padding:9px 10px;color:#475467;font-size:.78rem;line-height:1.4;margin-top:10px}.previewWrap{overflow:auto;max-height:60vh;background:#eaecf0;border-radius:13px;padding:9px}.previewWrap canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff}
+.editStage{position:relative;width:100%;margin:auto;overflow:hidden;background:#fff;line-height:0}
+.editStage>canvas{width:100%;max-width:none;height:auto;margin:0}
+.editorOverlay{position:absolute;z-index:3;display:none;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.editorOverlay.dragging{cursor:grabbing}
+.sigOverlay{transform:translate(-50%,-50%);height:auto;filter:drop-shadow(0 0 1px rgba(255,255,255,.9));outline:1px dashed rgba(23,92,211,.9);outline-offset:3px}
+.textOverlay{color:#111827;border:1px dashed #175cd3;background:rgba(255,255,255,.72);padding:2px 3px;white-space:pre;line-height:1.1;transform:none;max-width:100%;overflow:hidden}
+.nudgeRow{display:flex;justify-content:center;gap:7px;margin-top:8px}
+.nudgeRow button{min-width:44px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 9px;font-weight:800;color:#344054}
+.sig{width:100%;height:170px;border:1px solid #d0d5dd;border-radius:13px;touch-action:none;background:#fff}.footer{text-align:center;color:#98a2b3;font-size:.72rem;margin-top:24px}
+@media(min-width:760px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.body{padding:18px}}
+</style>
+<script src="libs/pdf-lib.min.js"></script>
+<script src="libs/pdf.min.js"></script>
+<script src="libs/jszip.min.js"></script>
+
+</head>
+<body>
+<div class="app">
+<header>
+<div class="top"><div class="brand"><div class="logo">PDF</div><div><h1>PDF Semplice</h1><div class="sub" data-i="subtitle">Strumenti PDF privati, offline e senza account.</div></div></div><div class="lang"><button id="itBtn" class="on">IT</button><button id="enBtn">EN</button></div></div>
+<div class="notice" data-i="privacy">🔒 Questa versione è completamente offline: i file restano nel browser e non vengono caricati su server.</div>
+<div class="engine"><span id="engineDot" class="dot"></span><span id="engineText">Controllo motori PDF…</span></div>
+</header>
+<main id="home"><div class="grid">
+<button class="tool" data-open="img2pdf"><div class="ico">📷</div><h2 data-i="t_img2pdf">Foto → PDF</h2><p data-i="d_img2pdf">Anteprima, rotazione, margini e adattamento senza tagli.</p></button>
+<button class="tool" data-open="pdf2img"><div class="ico">🖼️</div><h2 data-i="t_pdf2img">PDF → immagini</h2><p data-i="d_pdf2img">Esporta tutte le pagine in JPG dentro uno ZIP.</p></button>
+<button class="tool" data-open="merge"><div class="ico">🧩</div><h2 data-i="t_merge">Unisci PDF</h2><p data-i="d_merge">Combina più documenti nell’ordine scelto.</p></button>
+<button class="tool" data-open="extract"><div class="ico">✂️</div><h2 data-i="t_extract">Estrai pagine</h2><p data-i="d_extract">Conserva solo le pagine o gli intervalli che ti servono.</p></button>
+<button class="tool" data-open="organize"><div class="ico">↕️</div><h2 data-i="t_org">Organizza PDF</h2><p data-i="d_org">Riordina, ruota ed elimina pagine.</p></button>
+<button class="tool" data-open="sign"><div class="ico">✍️</div><h2 data-i="t_sign">Firma PDF</h2><p data-i="d_sign">Disegna una firma grafica e posizionala sul documento.</p></button>
+<button class="tool" data-open="text"><div class="ico">📝</div><h2 data-i="t_text">Aggiungi testo</h2><p data-i="d_text">Inserisci testo o data in un punto preciso.</p></button>
+<button class="tool" data-open="compress"><div class="ico">🗜️</div><h2 data-i="t_comp">Comprimi scansione</h2><p data-i="d_comp">Riduce PDF fotografici ricreando le pagine come JPG.</p></button>
+</div></main>
+
+<section class="panel" id="img2pdf"><div class="head"><button class="back">←</button><strong data-i="t_img2pdf">Foto → PDF</strong></div><div class="body">
+<div class="drop"><label class="pick"><span data-i="choose_imgs">Scegli foto</span><input id="imgInput" type="file" accept="image/*" multiple></label><p class="small" data-i="img_help">Dopo la selezione vedrai esattamente come sarà ogni pagina.</p></div>
+<div class="row"><div class="field"><label class="cap" data-i="page_size">Formato pagina</label><select id="imgPageSize"><option value="a4" data-i="a4">A4</option><option value="image" data-i="photo_ratio">Proporzionata alla foto</option></select></div><div class="field"><label class="cap" data-i="orientation">Orientamento</label><select id="imgOrientation"><option value="auto" data-i="auto_each">Automatico</option><option value="portrait" data-i="portrait">Verticale</option><option value="landscape" data-i="landscape">Orizzontale</option></select></div></div>
+<div class="row"><div class="field"><label class="cap" data-i="fit">Adattamento</label><select id="imgFit"><option value="contain" data-i="contain">Adatta tutto — non tagliare</option><option value="cover" data-i="cover">Riempi pagina — può tagliare</option></select></div><div class="field"><label class="cap"><span data-i="margin">Margine</span> <span id="marginVal">10 mm</span></label><input id="imgMargin" type="range" min="0" max="30" value="10"></div></div>
+<div class="row"><div class="field"><label class="cap"><span 
