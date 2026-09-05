@@ -1,0 +1,81 @@
+name: Build PDF Semplice Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pdf-semplice-windows]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild desktop HTML
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src/PDFSemplice.Desktop/Assets" | Out-Null
+          $parts = 0..4 | ForEach-Object { Get-Content ("assets-src/index.part" + $_) -Raw }
+          $html = [string]::Concat($parts)
+          [System.IO.File]::WriteAllText("src/PDFSemplice.Desktop/Assets/index.html", $html, [System.Text.UTF8Encoding]::new($false))
+          if ($html.Length -lt 47000) { throw "HTML reconstruction failed" }
+          if ($html -notmatch "PDF Semplice") { throw "HTML marker missing" }
+          if ($html -notmatch "trimSig") { throw "Signature editor missing" }
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download offline PDF libraries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src/PDFSemplice.Desktop/Assets/libs" | Out-Null
+          Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" -OutFile "src/PDFSemplice.Desktop/Assets/libs/pdf-lib.min.js"
+          Invoke-WebRequest -Uri "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" -OutFile "src/PDFSemplice.Desktop/Assets/libs/pdf.min.js"
+          Invoke-WebRequest -Uri "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js" -OutFile "src/PDFSemplice.Desktop/Assets/libs/pdf.worker.min.js"
+          Invoke-WebRequest -Uri "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" -OutFile "src/PDFSemplice.Desktop/Assets/libs/jszip.min.js"
+
+      - name: Restore
+        run: dotnet restore "src/PDFSemplice.Desktop/PDFSemplice.Desktop.csproj"
+
+      - name: Publish x64 self-contained
+        run: dotnet publish "src/PDFSemplice.Desktop/PDFSemplice.Desktop.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
+
+      - name: Verify desktop output
+        shell: pwsh
+        run: |
+          if (!(Test-Path "artifacts/publish/PDF Semplice.exe")) { throw "EXE missing" }
+          if (!(Test-Path "artifacts/publish/Assets/index.html")) { throw "HTML missing" }
+          if (!(Test-Path "artifacts/publish/Assets/libs/pdf-lib.min.js")) { throw "pdf-lib missing" }
+          if (!(Test-Path "artifacts/publish/Assets/libs/pdf.worker.min.js")) { throw "PDF worker missing" }
+          Get-ChildItem artifacts/publish -Recurse | Select-Object FullName,Length
+
+      - name: Create Portable ZIP
+        shell: pwsh
+        run: Compress-Archive -Path "artifacts/publish/*" -DestinationPath "PDF-Semplice-Windows-Portable-x64.zip" -Force
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\PDF-Semplice.iss"
+          Copy-Item "installer\output\PDF-Semplice-Setup-1.0.0.exe" "PDF-Semplice-Setup-1.0.0-x64.exe"
+
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF-Semplice-Windows-Portable-x64
+          path: PDF-Semplice-Windows-Portable-x64.zip
+          retention-days: 7
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF-Semplice-Windows-Installer-x64
+          path: PDF-Semplice-Setup-1.0.0-x64.exe
+          retention-days: 7
